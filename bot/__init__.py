@@ -18,9 +18,6 @@ from psycopg2 import Error
 faulthandler.enable()
 import subprocess
 
-from megasdkrestclient import MegaSdkRestClient
-from megasdkrestclient import errors as mega_err
-
 socket.setdefaulttimeout(600)
 
 botStartTime = time.time()
@@ -84,6 +81,10 @@ subprocess.run(["./aria.sh"], shell=True)
 DRIVE_NAME = []
 DRIVE_ID = []
 UNI_INDEX_URL = []
+BLOCK_MEGA_LINKS = True
+MEGA_KEY = None
+MEGA_USERNAME = None
+MEGA_PASSWORD = None
 
 if os.path.exists('drive_folder'):
     with open('drive_folder', 'r+') as f:
@@ -262,56 +263,10 @@ if DB_URI is not None:
         conn.close()    
 
 LOGGER.info("Generating USER_SESSION_STRING")
-try:
-    PREMIUM_USER = False
-    SESSION_STRING = getConfig('SESSION_STRING')
-    if len(SESSION_STRING) == 0:
-        raise KeyError
-    app = Client(
-    ":memory:", api_id=int(TELEGRAM_API), api_hash=TELEGRAM_HASH, session_string=SESSION_STRING
-)
-    with app:
-        PREMIUM_USER = app.get_me().is_premium
-except:
-    app = Client(
+app = Client(
     ":memory:", api_id=int(TELEGRAM_API), api_hash=TELEGRAM_HASH, bot_token=BOT_TOKEN
 )
 
-try:
-    MEGA_KEY = getConfig("MEGA_KEY")
-
-except KeyError:
-    MEGA_KEY = None
-    LOGGER.info("MEGA API KEY NOT AVAILABLE")
-if MEGA_KEY is not None:
-    # Start megasdkrest binary
-    subprocess.Popen(["megasdkrest", "--apikey", MEGA_KEY])
-    time.sleep(3)  # Wait for the mega server to start listening
-    mega_client = MegaSdkRestClient("http://localhost:6090")
-    try:
-        MEGA_USERNAME = getConfig("MEGA_USERNAME")
-        MEGA_PASSWORD = getConfig("MEGA_PASSWORD")
-        if len(MEGA_USERNAME) > 0 and len(MEGA_PASSWORD) > 0:
-            try:
-                mega_client.login(MEGA_USERNAME, MEGA_PASSWORD)
-            except mega_err.MegaSdkRestClientException as e:
-                logging.error(e.message["message"])
-                exit(0)
-        else:
-            LOGGER.info(
-                "Mega API KEY provided but credentials not provided. Starting mega in anonymous mode!"
-            )
-            MEGA_USERNAME = None
-            MEGA_PASSWORD = None
-    except KeyError:
-        LOGGER.info(
-            "Mega API KEY provided but credentials not provided. Starting mega in anonymous mode!"
-        )
-        MEGA_USERNAME = None
-        MEGA_PASSWORD = None
-else:
-    MEGA_USERNAME = None
-    MEGA_PASSWORD = None
 try:
     INDEX_URL = getConfig("INDEX_URL")
     if len(INDEX_URL) == 0:
@@ -358,12 +313,6 @@ except KeyError:
     USE_SERVICE_ACCOUNTS = False
 
 try:
-    BLOCK_MEGA_LINKS = getConfig("BLOCK_MEGA_LINKS")
-    BLOCK_MEGA_LINKS = BLOCK_MEGA_LINKS.lower() == "true"
-except KeyError:
-    BLOCK_MEGA_LINKS = False
-
-try:
     SHORTENER = getConfig("SHORTENER")
     SHORTENER_API = getConfig("SHORTENER_API")
     if len(SHORTENER) == 0 or len(SHORTENER_API) == 0:
@@ -381,15 +330,12 @@ except KeyError:
 
 try:
     TG_SPLIT_SIZE = getConfig('TG_SPLIT_SIZE')
-    if len(TG_SPLIT_SIZE) == 0 or (not PREMIUM_USER and TG_SPLIT_SIZE > 2097152000) or TG_SPLIT_SIZE > 4194304000:
+    if len(TG_SPLIT_SIZE) == 0 or int(TG_SPLIT_SIZE) > 2097152000:
         raise KeyError
     else:
         TG_SPLIT_SIZE = int(TG_SPLIT_SIZE)
-except:
-    if PREMIUM_USER:
-        TG_SPLIT_SIZE = 4194304000
-    else:
-        TG_SPLIT_SIZE = 2097152000
+except KeyError:
+    TG_SPLIT_SIZE = 2097152000
 try:
     AS_DOCUMENT = getConfig('AS_DOCUMENT')
     AS_DOCUMENT = AS_DOCUMENT.lower() == 'true'
